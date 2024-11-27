@@ -44,9 +44,9 @@ const extractAndAddObject = async (reportFile, tddLogFile) => {
     tddLog.push(newReport);
 
     writeJSONFile(tddLogFile, tddLog);
-    console.log("Tdd log has been updated");
+    console.log('Tdd log has been updated');
   } catch (error) {
-    console.error("Error en la ejecución:", error);
+    console.error('Error en la ejecución:', error);
   }
 };
 

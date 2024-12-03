@@ -22,7 +22,7 @@ const updateJsonFile = (commitId) => {
         fs.writeFileSync(filePath, JSON.stringify(existingData, null, 2));
     } catch (err) {
         if (err.code === 'ENOENT') {
-            fs.writeFileSync(filePath, JSON.stringify({ commits: [data] }, null, 2));
+            fs.writeFileSync(filePath, JSON.stringify([data], null, 2));
         } else {
             console.error('Error updating JSON file:', err);
         }

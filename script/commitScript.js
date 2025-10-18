@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import path from 'path';
+import { getLastTestId } from './id_execution_tests_commit.js';
 
 const getLatestCommitId = () => {
     const latestCommit = execSync('git rev-parse HEAD').toString().trim();
@@ -18,8 +19,8 @@ const updateJsonFile = (commitId, commitName) => {
     const __dirname = path.dirname(__filename);
     const filePath = path.join(__dirname, 'tdd_log.json');
     const commitTimestamp = Date.now();
-    const data = { commitId, commitName, commitTimestamp };
-
+    let testId = getLastTestId(filePath);
+    const data = { commitId, commitName, commitTimestamp, testId };
     try {
         const fileData = fs.readFileSync(filePath, 'utf8');
         const existingData = JSON.parse(fileData);
@@ -36,4 +37,5 @@ const updateJsonFile = (commitId, commitName) => {
 
 const latestCommitId = getLatestCommitId();
 const latestCommitName = getLatestCommitName();
+
 updateJsonFile(latestCommitId, latestCommitName);

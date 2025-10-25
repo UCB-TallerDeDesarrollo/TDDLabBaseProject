@@ -4,38 +4,44 @@ import fs from 'fs';
 import path from 'path';
 import { getLastTestId } from './id_execution_tests_commit.js';
 
-const getLatestCommitId = () => {
-    const latestCommit = execSync('git rev-parse HEAD').toString().trim();
-    return latestCommit;
-};
-
 const getLatestCommitName = () => {
     const commitName = execSync('git log -1 --pretty=%B').toString().trim();
     return commitName;
 };
 
-const updateJsonFile = (commitId, commitName) => {
+const updateJsonFile = () => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const filePath = path.join(__dirname, 'tdd_log.json');
     const commitTimestamp = Date.now();
+    const commitName = getLatestCommitName();
     let testId = getLastTestId(filePath);
-    const data = { commitId, commitName, commitTimestamp, testId };
+
+    let existingData = [];
     try {
         const fileData = fs.readFileSync(filePath, 'utf8');
-        const existingData = JSON.parse(fileData);
-        existingData.push(data);
-        fs.writeFileSync(filePath, JSON.stringify(existingData, null, 2));
+        existingData = JSON.parse(fileData);
     } catch (err) {
-        if (err.code === 'ENOENT') {
-            fs.writeFileSync(filePath, JSON.stringify([data], null, 2));
-        } else {
-            console.error('Error updating JSON file:', err);
+        if (err.code !== 'ENOENT') {
+            console.error('Error reading JSON file:', err);
+            return;
         }
     }
+
+    const headIndex = existingData.findIndex(entry => entry.commitId === 'HEAD');
+    if (headIndex > -1) {
+        try {
+            const realSha = execSync('git rev-parse HEAD~1').toString().trim();
+            existingData[headIndex].commitId = realSha;
+        } catch (error) {
+            console.error('Could not get previous commit SHA:', error);
+        }
+    }
+
+    const data = { commitId: 'HEAD', commitName, commitTimestamp, testId };
+    existingData.push(data);
+
+    fs.writeFileSync(filePath, JSON.stringify(existingData, null, 2));
 };
 
-const latestCommitId = getLatestCommitId();
-const latestCommitName = getLatestCommitName();
-
-updateJsonFile(latestCommitId, latestCommitName);
+updateJsonFile();

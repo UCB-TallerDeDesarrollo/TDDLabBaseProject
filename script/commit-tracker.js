@@ -1,11 +1,12 @@
 import fs from "fs";
-import { execSync, exec } from "child_process";
+import { execSync } from "child_process";
 import { tmpdir } from "os";
 import path from "path";
 import crypto from "crypto";
+import { getHistoryFilePaths } from "./branch-utils.js";
 
-const DATA_FILE = "script/commit-history.json";
 const HEAD_MARKER = "HEAD";
+const { commitHistory: DATA_FILE } = getHistoryFilePaths();
 
 function getCommitInfo(sha) {
   let commitMessage, commitDate, author;
@@ -64,7 +65,7 @@ function getCommitInfo(sha) {
     }
 
     try {
-      // Excluir commit-history.json al obtener las estadísticas del diff
+      // Excluir el historial de la rama actual al obtener las estadísticas del diff
       const diffStats = execSync(
         `git diff --stat ${parentRef} ${gitSha} -- ":!${DATA_FILE}"`
       ).toString();
@@ -202,29 +203,35 @@ function saveCommitData(commitData) {
     }
   }
 
-  // Actualizar el commit HEAD anterior con su SHA real
+  // Actualizar el commit HEAD anterior con su SHA real y datos correctos
   const headIndex = commits.findIndex((c) => c.sha === HEAD_MARKER);
   if (headIndex >= 0) {
-    // Obtener el SHA del commit anterior (que antes era HEAD)
-    const currentSha = execSync("git rev-parse HEAD~1").toString().trim();
-
-    // Actualizar el registro con el SHA real
-    commits[headIndex].sha = currentSha;
-    if (commits[headIndex].commit.url && currentSha) {
-      const baseUrl = commits[headIndex].commit.url.split("/commit/")[0];
-      commits[headIndex].commit.url = `${baseUrl}/commit/${currentSha}`;
+    try {
+      // Obtener el SHA del commit anterior (que antes era HEAD)
+      const realSha = execSync("git rev-parse HEAD~1").toString().trim();
+      
+      // Re-obtener toda la información para ese SHA para asegurar la consistencia
+      const resolvedCommitData = getCommitInfo(realSha);
+      
+      if (resolvedCommitData) {
+        // Reemplazar el objeto HEAD temporal con el objeto resuelto y correcto
+        commits[headIndex] = resolvedCommitData;
+      } else {
+        // Si no se pudo resolver, eliminar la entrada HEAD para evitar corrupción
+        commits.splice(headIndex, 1);
+      }
+    } catch(e) {
+      // Esto puede pasar en el primer commit donde no hay HEAD~1.
+      // En ese caso, simplemente eliminamos la entrada HEAD si existiera por error.
+      commits.splice(headIndex, 1);
     }
   }
 
-  // Actualizar o agregar el commit actual (HEAD)
-  const existingIndex = commits.findIndex((c) => c.sha === commitData.sha);
-  if (existingIndex >= 0 && commitData.sha !== HEAD_MARKER) {
-    // Actualizar commit existente
-    commits[existingIndex] = commitData;
-  } else {
-    // Agregar el nuevo commit HEAD
-    commits.push(commitData);
-  }
+  // Eliminar cualquier otro posible duplicado de HEAD antes de añadir el nuevo
+  commits = commits.filter(c => c.sha !== HEAD_MARKER);
+
+  // Agregar el nuevo commit actual (marcado como HEAD)
+  commits.push(commitData);
 
   // Actualizar URLs para commits que no la tengan si tenemos una URL base
   if (commitData.commit.url) {

@@ -1,0 +1,37 @@
+#!/bin/sh
+# .husky/post-merge
+
+# This hook automates the merging of TDDLab history files after a git merge.
+
+# The first argument to this hook is a flag indicating if it was a squash merge.
+# We don't support automated history merging for squash merges.
+if [ "$1" = "1" ]; then
+    echo "TDDLab: Squash merge detected. Please run merge-histories.js manually if needed."
+    exit 0
+fi
+
+# Get the last reflog message for HEAD to find out what was merged.
+# This is a reliable way to get the name of the branch that the user typed.
+reflog_message=$(git reflog -1)
+
+# Try to extract the source branch name from a standard merge message like "merge <branch>:"
+source_branch=$(echo "$reflog_message" | sed -n 's/.*merge \([^:]*\):.*/\1/p')
+
+# If we couldn't find a branch name from the reflog, we can't proceed.
+# This might happen in complex/non-standard merge scenarios.
+if [ -z "$source_branch" ]; then
+    echo "TDDLab: Could not automatically determine source branch from reflog. Skipping history merge."
+    exit 0
+fi
+
+# The target branch is simply the current branch.
+target_branch=$(git rev-parse --abbrev-ref HEAD)
+
+echo "TDDLab: Detected merge of '$source_branch' into '$target_branch'."
+echo "TDDLab: Running history merge script..."
+
+# Execute the merge script with the determined branch names.
+node script/merge-histories.js "$source_branch" "$target_branch"
+
+echo "TDDLab: History merge complete."
+exit 0

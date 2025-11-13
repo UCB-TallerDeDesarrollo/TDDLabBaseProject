@@ -1,8 +1,7 @@
 import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
-import path from 'path';
 import { getLastTestId } from './id_execution_tests_commit.js';
+import { getHistoryFilePaths } from './branch-utils.js';
 
 const getLatestCommitName = () => {
     const commitName = execSync('git log -1 --pretty=%B').toString().trim();
@@ -10,12 +9,10 @@ const getLatestCommitName = () => {
 };
 
 const updateJsonFile = () => {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const filePath = path.join(__dirname, 'tdd_log.json');
+    const { tddLog: filePath } = getHistoryFilePaths();
     const commitTimestamp = Date.now();
     const commitName = getLatestCommitName();
-    let testId = getLastTestId(filePath);
+    let testId = getLastTestId();
 
     let existingData = [];
     try {

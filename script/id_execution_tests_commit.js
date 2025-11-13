@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { getHistoryFilePaths } from './branch-utils.js';
 
 const readJSONFile = (filePath) => {
   const rawData = fs.readFileSync(filePath, 'utf-8');
@@ -20,9 +21,10 @@ const isACommit = (lastEntry) => {
   return lastEntry.hasOwnProperty('commitId');
 };
 
-const getLastTestId = (filePath) => {
-  ensureFileExists(filePath, []);
-  const historyExecutionData = readJSONFile(filePath);
+const getLastTestId = () => {
+  const { tddLog } = getHistoryFilePaths();
+  ensureFileExists(tddLog, []);
+  const historyExecutionData = readJSONFile(tddLog);
   const lastEntry = historyExecutionData[historyExecutionData.length - 1];
   
   if (lastEntry) {
@@ -36,4 +38,4 @@ const getLastTestId = (filePath) => {
   }
 };
 
-export {getLastTestId };
+export { getLastTestId };

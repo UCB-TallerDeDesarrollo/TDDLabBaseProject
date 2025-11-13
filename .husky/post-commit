@@ -1,14 +1,32 @@
+#!/bin/sh
+# .husky/post-commit
+
+# Re-entry guard to prevent infinite loops
+if [ "$HUSKY_POST_COMMIT_RUNNING" = "true" ]; then
+  exit 0
+fi
+export HUSKY_POST_COMMIT_RUNNING="true"
+
 if [ "$HUSKY_SKIP_TRACK" = "1" ]; then
-	exit 0
+  exit 0
 fi
 
+echo "Running post-commit hooks..."
+
+# Run tracking scripts
 node ./script/commitScript.js
+node ./script/commit-tracker.js
 
-REPO_DIR="$(git rev-parse --show-toplevel)"
-node "$REPO_DIR/script/commit-tracker.js"
+# Get the current branch name and sanitize it for filesystem
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9_.-]/_/g')
 
-export HUSKY=0
-git add script/commit-history.json
-git add script/tdd_log.json
-git commit --amend --no-edit 
-unset HUSKY
+COMMIT_HISTORY_FILE="script/commit-history.${BRANCH_NAME}.json"
+TDD_LOG_FILE="script/tdd_log.${BRANCH_NAME}.json"
+
+# Add the generated files to the commit
+git add "$COMMIT_HISTORY_FILE" "$TDD_LOG_FILE"
+
+# Amend the commit to include the history files without re-triggering other hooks
+git commit --amend --no-edit --no-verify
+
+echo "Post-commit hooks finished."

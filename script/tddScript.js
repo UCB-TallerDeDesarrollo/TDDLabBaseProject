@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'cross-spawn';
 import { getLastTestId } from './id_execution_tests_commit.js';
+import { getHistoryFilePaths } from './branch-utils.js';
 
 const COMMAND = 'jest';
 const args = ['--json', '--outputFile=./script/report.json'];
@@ -32,10 +33,11 @@ const ensureFileExists = (filePath, initialData) => {
   }
 };
 
-const extractAndAddObject = async (reportFile, tddLogFile) => {
+const extractAndAddObject = async (reportFile) => {
   try {
     await runCommand(COMMAND, args);
-
+    
+    const { tddLog: tddLogFile } = getHistoryFilePaths();
     ensureFileExists(tddLogFile, []);
 
     const jsonData = readJSONFile(reportFile);
@@ -44,7 +46,7 @@ const extractAndAddObject = async (reportFile, tddLogFile) => {
     const totalTests = jsonData.numTotalTests;
     const startTime = jsonData.startTime;
     const success = jsonData.success;
-    let testId = getLastTestId(tddLogFile);
+    let testId = getLastTestId();
 
     const newReport = {
       numPassedTests: passedTests,
@@ -68,8 +70,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const inputFilePath = path.join(__dirname, 'report.json');
-const outputFilePath = path.join(__dirname, 'tdd_log.json');
 
-extractAndAddObject(inputFilePath, outputFilePath);
+extractAndAddObject(inputFilePath);
 
 export { extractAndAddObject };

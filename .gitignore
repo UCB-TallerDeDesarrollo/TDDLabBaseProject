@@ -7,3 +7,5 @@ dist
 report.json
 ./.husky/_
 .husky/.commit-state
+/script/tdd-preview.json
+/script/tdd-preview.json.*.tmp

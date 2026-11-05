@@ -1,75 +1,36 @@
-import { fileURLToPath } from 'url';
-import fs from 'fs';
-import path from 'path';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
 import { spawn } from 'cross-spawn';
-import { getLastTestId } from './id_execution_tests_commit.js';
+import { executionContext, recordExecution } from './tdd-events.js';
 
-const COMMAND = 'jest';
-const args = ['--json', '--outputFile=./script/report.json'];
+const context = executionContext();
+const folder = mkdtempSync(join(tmpdir(), 'tddlab-jest-'));
+const reportFile = join(folder, 'report.json');
 
-function runCommand(command, args) {
-  return new Promise((resolve, reject) => {
-    const process = spawn(command, args, { stdio: 'inherit' });
-    process.on('close', (code) => {
-      resolve();
-    });
+try {
+  const status = await new Promise((resolve, reject) => {
+    const child = spawn('jest', ['--runInBand', '--coverage', '--json', `--outputFile=${reportFile}`], { stdio: 'inherit' });
+    child.once('error', reject);
+    child.once('close', (code) => resolve(code ?? 1));
   });
+  const report = JSON.parse(readFileSync(reportFile, 'utf8'));
+  const statements = Object.values(report.coverageMap ?? {}).flatMap((file) => Object.values(file.s));
+  const coverage = statements.length
+    ? Math.round(10000 * statements.filter((count) => count > 0).length / statements.length) / 100
+    : null;
+  recordExecution({
+    eventId: randomUUID(),
+    numPassedTests: report.numPassedTests,
+    failedTests: report.numFailedTests,
+    numTotalTests: report.numTotalTests,
+    timestamp: report.startTime,
+    success: report.success,
+    coverage,
+  }, context);
+  process.exitCode = status;
+} finally {
+  rmSync(folder, { recursive: true, force: true });
 }
-
-const readJSONFile = (filePath) => {
-  const rawData = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(rawData);
-};
-
-const writeJSONFile = (filePath, data) => {
-  const jsonString = JSON.stringify(data, null, 2);
-  fs.writeFileSync(filePath, jsonString, 'utf-8');
-};
-
-const ensureFileExists = (filePath, initialData) => {
-  if (!fs.existsSync(filePath)) {
-    writeJSONFile(filePath, initialData);
-  }
-};
-
-const extractAndAddObject = async (reportFile, tddLogFile) => {
-  try {
-    await runCommand(COMMAND, args);
-
-    ensureFileExists(tddLogFile, []);
-
-    const jsonData = readJSONFile(reportFile);
-    const passedTests = jsonData.numPassedTests;
-    const failedTests = jsonData.numFailedTests; 
-    const totalTests = jsonData.numTotalTests;
-    const startTime = jsonData.startTime;
-    const success = jsonData.success;
-    let testId = getLastTestId(tddLogFile);
-
-    const newReport = {
-      numPassedTests: passedTests,
-      failedTests: failedTests,
-      numTotalTests: totalTests,
-      timestamp: startTime,
-      success: success,
-      testId: testId
-    };
-
-    const tddLog = readJSONFile(tddLogFile);
-    tddLog.push(newReport);
-
-    writeJSONFile(tddLogFile, tddLog);
-  } catch (error) {
-    console.error("Error en la ejecución:", error);
-  }
-};
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const inputFilePath = path.join(__dirname, 'report.json');
-const outputFilePath = path.join(__dirname, 'tdd_log.json');
-
-extractAndAddObject(inputFilePath, outputFilePath);
-
-export { extractAndAddObject };

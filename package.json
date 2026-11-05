@@ -8,6 +8,8 @@
     "start": "parcel index.html",
     "build": "parcel build index.html",
     "test": "node ./script/tddScript.js",
+    "tdd:export": "node ./script/tdd-history.js export",
+    "tdd:preview": "node ./script/tdd-history.js preview",
     "cypress": "cypress open",
     "cypress-run": "cypress run",
     "lint": "eslint .",

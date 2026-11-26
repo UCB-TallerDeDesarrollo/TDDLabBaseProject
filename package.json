@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "postinstall": "git init && npx husky",
     "semantic-commits-on": "node semantic-commits.js enable",
-    "semantic-commits-off": "node semantic-commits.js disabled"
+    "semantic-commits-off": "node semantic-commits.js disabled",
+    "tdd:db:cycles": "node ./script/cycles.js",
+    "tdd:db:reach": "node ./script/reach.js"
   },
   "author": "Israel Antezana R.",
   "license": "ISC",
@@ -29,6 +31,7 @@
     "parcel": "^2.12.0"
   },
   "dependencies": {
-    "parcel-jest-base": "file:"
+    "parcel-jest-base": "file:",
+    "pg": "^8.23.1"
   }
 }

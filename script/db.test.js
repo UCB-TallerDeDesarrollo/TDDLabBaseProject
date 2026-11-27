@@ -8,6 +8,10 @@ import {
   parseDotEnv,
   findDotEnvFile,
   readDotEnv,
+  REQUIRED_TABLES,
+  checkBranchSupportSchema,
+  assertBranchSupportSchema,
+  wrongSchemaMessage,
 } from "./lib/db.js";
 import fs from "node:fs";
 import os from "node:os";
@@ -228,5 +232,65 @@ describe("findDotEnvFile / readDotEnv", () => {
     // Simulamos fallo de lectura apuntando a un directorio como si fuera .env.
     fs.mkdirSync(path.join(dir, ".env"));
     expect(readDotEnv(dir)).toEqual({});
+  });
+});
+
+describe("preflight del esquema de DB-B", () => {
+  const fakeQuery = (present) => jest.fn(async () => ({
+    rows: present.map((table_name) => ({ table_name })),
+  }));
+
+  it("define exactamente las siete tablas de DB-B", () => {
+    expect(REQUIRED_TABLES).toEqual([
+      "project",
+      "branch",
+      "git_commit",
+      "branch_commit",
+      "commit_parent",
+      "test_execution",
+      "test_result",
+    ]);
+  });
+
+  it("no reporta nada cuando el esquema está completo", async () => {
+    const run = fakeQuery(REQUIRED_TABLES);
+    await expect(checkBranchSupportSchema(run)).resolves.toEqual([]);
+    await expect(assertBranchSupportSchema(run)).resolves.toBeUndefined();
+  });
+
+  it("reporta solo las tablas ausentes, sin inventar ninguna", async () => {
+    const run = fakeQuery(["project", "git_commit"]);
+    await expect(checkBranchSupportSchema(run)).resolves.toEqual(
+      REQUIRED_TABLES.filter((t) => !["project", "git_commit"].includes(t))
+    );
+  });
+
+  it("lanza un error identificable si la URL apunta a otra base", async () => {
+    // Caso real: la base de la aplicación (commitstable/jobstable/…).
+    const run = fakeQuery(["commitstable", "jobstable", "commit_timeline"]);
+    await expect(assertBranchSupportSchema(run)).rejects.toMatchObject({
+      code: "WRONG_DATABASE_SCHEMA",
+      missing_tables: REQUIRED_TABLES,
+    });
+  });
+
+  it("la consulta es solo SELECT sobre information_schema", async () => {
+    const run = jest.fn(async () => ({ rows: [] }));
+    await checkBranchSupportSchema(run);
+    const [sql, params] = run.mock.calls[0];
+    expect(sql).toMatch(/^SELECT /i);
+    expect(sql).not.toMatch(/\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE)\b/i);
+    expect(sql).toContain("information_schema.tables");
+    expect(params[0]).toBe(REQUIRED_TABLES);
+  });
+
+  it("el mensaje explica la alternativa y no filtra credenciales", () => {
+    const message = wrongSchemaMessage(["project", "branch"]);
+    expect(message).toContain("project, branch");
+    expect(message).toContain("DB-B");
+    expect(message).toContain("BRANCH_SUPPORT_DATABASE_URL");
+    expect(message).toContain("commitstable");
+    expect(message).not.toMatch(/:\/\/[^@\s]+:[^@\s]+@/);
+    expect(message).not.toMatch(/PGPASSWORD/i);
   });
 });

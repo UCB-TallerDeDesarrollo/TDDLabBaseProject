@@ -28,7 +28,13 @@
  * Port a JavaScript de `VSCodeExtension/resources/tddBridge/reach.mjs`
  * (repo TDDLab), cambiando el transporte HTTP por escritura directa en DB-B.
  */
-import { query, getPool, closePool, missingConfigMessage } from "./db.js";
+import {
+  query,
+  getPool,
+  closePool,
+  missingConfigMessage,
+  assertBranchSupportSchema,
+} from "./db.js";
 import {
   resolveRepoRoot,
   currentBranch,
@@ -590,8 +596,21 @@ function formatHuman(result) {
 
 export async function main(argv = process.argv.slice(2)) {
   try {
+    // Preflight de solo lectura: si la URL apunta a la base de la aplicación
+    // en vez de DB-B, fallamos con un mensaje claro antes de tocar nada.
+    // `--help` no necesita base de datos. Los hooks no pasan por aquí (llaman
+    // a runReachCli directamente) para no añadir latencia ni bloquear Git.
+    if (!argv.includes("--help") && !argv.includes("-h")) {
+      await assertBranchSupportSchema();
+    }
     const { exitCode } = await runReachCli(argv);
     return exitCode;
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    console.error(`TDDLab reach: ${message}`);
+    return error?.code === "WRONG_DATABASE_SCHEMA" || message.includes("Falta la URL")
+      ? EXIT.CONFIG
+      : EXIT.RUNTIME;
   } finally {
     await closePool().catch(() => {});
   }

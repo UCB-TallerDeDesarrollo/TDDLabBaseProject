@@ -73,6 +73,30 @@ Notas de seguridad:
   no leer archivos de otros proyectos.
 - No se usa `dotenv`: el parser es propio, mínimo y sin dependencias.
 
+### Dos bases Neon: cuál usa cada script
+
+El `.env` del proyecto contiene **dos conexiones distintas** y no son
+intercambiables:
+
+| Función | Variable(s) | Esquema (`public`) |
+|---|---|---|
+| **DB-B**: topología de ramas. La usan `reach`, `cycles` y los hooks | `TDDLAB_DATABASE_URL`, `BRANCH_SUPPORT_DATABASE_URL`, `DATABASE_URL` | `project`, `branch`, `git_commit`, `branch_commit`, `commit_parent`, `test_execution`, `test_result` |
+| Base de la aplicación | `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPORT`, … | `assignments`, `commit_timeline`, `commitstable`, `feature_flags`, `groups`, `jobstable`, `practices`, `practicesubmissions`, `prompts_ia_temp_v2`, `submissions`, `teachercomments`, `userstable` |
+
+Los scripts **nunca leen las variables `PG*`**. `reach` necesita `branch`,
+`branch_commit` y `commit_parent` para garantizar que todos los commits
+alcanzables desde el HEAD de la rama estén registrados; `cycles` necesita las
+ejecuciones acotadas por rama. La base de la aplicación no tiene esas tablas
+ni esas columnas, así que no puede sustituir a DB-B sin crear esquema nuevo:
+**no se hace** (no se inventan tablas ni columnas, no hay migraciones).
+
+Los comandos manuales hacen un **preflight de solo lectura** sobre
+`information_schema.tables` antes de ejecutarse. Si la URL apunta a la base
+equivocada, terminan con un mensaje que nombra las tablas faltantes y la
+variable que hay que corregir, sin escribir nada. Los hooks no hacen este
+preflight: son *fail-open* y no deben añadir latencia a `git commit`,
+`checkout`, `merge` ni `rebase`.
+
 ### `npm run tdd:db:cycles` — clasificación de ciclos TDD (Script B)
 
 Solo SELECT: sin INSERT/UPDATE/DELETE, sin migraciones, sin locks.

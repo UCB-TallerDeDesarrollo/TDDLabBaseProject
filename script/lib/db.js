@@ -180,6 +180,71 @@ export async function query(sql, params) {
   return getPool().query(sql, params);
 }
 
+// ---------------------------------------------------------------------------
+// Preflight del esquema de DB-B (solo lectura)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tablas que forman el esquema de topología de ramas (DB-B).
+ *
+ * Este es el único esquema que entienden `reach`, `cycles` y los hooks.
+ * La otra base Neon de la aplicación (`commitstable`, `jobstable`,
+ * `commit_timeline`, `submissions`, …) NO contiene ramas, aristas de
+ * parentesco ni ejecuciones por rama: no es intercambiable.
+ */
+export const REQUIRED_TABLES = Object.freeze([
+  "project",
+  "branch",
+  "git_commit",
+  "branch_commit",
+  "commit_parent",
+  "test_execution",
+  "test_result",
+]);
+
+/** Mensaje claro para el caso de apuntar a la base equivocada. */
+export function wrongSchemaMessage(missing) {
+  const list = Array.isArray(missing) ? missing : [missing];
+  return (
+    `La URL configurada no apunta a DB-B: faltan las tablas ${list.join(", ")}. ` +
+    "DB-B es la base con project/branch/git_commit/branch_commit/commit_parent/" +
+    "test_execution/test_result. La base de la aplicación (commitstable, " +
+    "jobstable, commit_timeline, submissions, …) no sirve para reach/cycles: " +
+    "define TDDLAB_DATABASE_URL o BRANCH_SUPPORT_DATABASE_URL con la URL de DB-B."
+  );
+}
+
+/**
+ * Devuelve las tablas requeridas que faltan en `public`. No crea nada.
+ *
+ * @param {(sql: string, params: any[]) => Promise<{rows: any[]}>} [queryFn]
+ * @returns {Promise<string[]>} tablas ausentes (vacío = esquema OK)
+ */
+export async function checkBranchSupportSchema(queryFn = query) {
+  const { rows } = await queryFn(
+    `SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = ANY($1)`,
+    [REQUIRED_TABLES]
+  );
+  const present = new Set(rows.map((row) => row.table_name));
+  return REQUIRED_TABLES.filter((name) => !present.has(name));
+}
+
+/**
+ * Lanza un error con `code = "WRONG_DATABASE_SCHEMA"` si la URL apunta a otra
+ * base. Solo SELECT: no altera datos ni esquema.
+ *
+ * @param {(sql: string, params: any[]) => Promise<{rows: any[]}>} [queryFn]
+ */
+export async function assertBranchSupportSchema(queryFn = query) {
+  const missing = await checkBranchSupportSchema(queryFn);
+  if (missing.length === 0) return;
+  const error = new Error(wrongSchemaMessage(missing));
+  error.code = "WRONG_DATABASE_SCHEMA";
+  error.missing_tables = missing;
+  throw error;
+}
+
 /** Cierra el pool (para tests y para salir limpio). */
 export async function closePool() {
   if (pool) {

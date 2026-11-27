@@ -17,7 +17,12 @@
  * adaptado a TddLabBaseProject: habla directo con Neon vía `script/lib/db.js`
  * en lugar del pool del servidor.
  */
-import { query, closePool, missingConfigMessage } from "./db.js";
+import {
+  query,
+  closePool,
+  missingConfigMessage,
+  assertBranchSupportSchema,
+} from "./db.js";
 import { readBranchCommits, getTDDCyclesGraph } from "./branchHistory.js";
 import { buildAuditReport } from "./cycleAudit.js";
 
@@ -292,7 +297,16 @@ export async function runCyclesCli(argv, deps = {}) {
 
 export async function main(argv = process.argv.slice(2)) {
   try {
+    // Preflight de solo lectura: `cycles` necesita el esquema de DB-B.
+    // Si la URL apunta a la base de la aplicación, avisamos antes de que
+    // falle una consulta con un "relation does not exist" críptico.
+    if (!argv.includes("--help") && !argv.includes("-h")) {
+      await assertBranchSupportSchema();
+    }
     return await runCyclesCli(argv);
+  } catch (error) {
+    console.error(`Error: ${error?.message ?? String(error)}`);
+    return 1;
   } finally {
     await closePool().catch(() => {});
   }

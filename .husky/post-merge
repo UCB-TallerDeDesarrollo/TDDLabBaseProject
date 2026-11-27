@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# F4 - auto-sync de alcanzabilidad (Script A) después de un merge.
+# La rama actual ganó commits alcanzables: hay que asociarlos en DB-B.
+#
+# Garantías:
+#   - solo corre si hay configuración válida de Neon (.env o variables de entorno)
+#   - nunca bloquea git merge: hookSync siempre sale con 0 y el hook termina en exit 0
+#   - no ejecuta `cycles` (sigue siendo manual) y no borra registros de Neon
+#   - no modifica el historial de Git
+REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+node "$REPO_DIR/script/hookSync.js" post-merge || true
+exit 0

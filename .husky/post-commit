@@ -8,7 +8,18 @@ REPO_DIR="$(git rev-parse --show-toplevel)"
 node "$REPO_DIR/script/commit-tracker.js"
 
 export HUSKY=0
+export TDDLAB_INTERNAL=1
 git add script/commit-history.json
 git add script/tdd_log.json
 git commit --amend --no-edit 
 unset HUSKY
+unset TDDLAB_INTERNAL
+
+# F4: sincroniza la alcanzabilidad en DB-B con el SHA FINAL (post-amend).
+# El --amend de arriba cambia el SHA del commit, por eso esto va DESPUÉS:
+# registrar el SHA previo dejaría un commit huérfano en DB-B.
+#  - solo corre si hay configuración válida de Neon (.env o variables de entorno)
+#  - nunca bloquea Git: hookSync siempre sale con 0 (doble red: `|| true` + exit 0)
+#  - no ejecuta `cycles` (sigue siendo manual) y no borra registros
+node "$REPO_DIR/script/hookSync.js" post-commit || true
+exit 0

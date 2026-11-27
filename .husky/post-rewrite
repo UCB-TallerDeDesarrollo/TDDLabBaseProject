@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# F4 - auto-sync de alcanzabilidad (Script A) después de un rewrite
+# (git commit --amend, git rebase, filter-branch…): el historial cambió y
+# los SHAs viejos dejan de ser alcanzables (reach los reporta como `stale`,
+# nunca los borra).
+#
+# Garantías:
+#   - solo corre si hay configuración válida de Neon (.env o variables de entorno)
+#   - nunca bloquea git rebase/amend: hookSync siempre sale con 0
+#   - no ejecuta `cycles` (sigue siendo manual) y no borra registros de Neon
+#   - no modifica el historial de Git
+REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+node "$REPO_DIR/script/hookSync.js" post-rewrite || true
+exit 0

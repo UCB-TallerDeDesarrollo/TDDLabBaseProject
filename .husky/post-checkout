@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# F4 - auto-sync de alcanzabilidad (Script A) después de un checkout/switch.
+# La rama destino pasa a ser HEAD: hay que reconciliar sus commits en DB-B.
+#
+# Garantías:
+#   - solo corre si hay configuración válida de Neon (.env o variables de entorno)
+#   - nunca bloquea git checkout: hookSync siempre sale con 0 (además tiene
+#     watchdog TDDLAB_HOOK_TIMEOUT_MS por si Neon no responde)
+#   - no ejecuta `cycles` (sigue siendo manual) y no borra registros de Neon
+#   - no modifica el historial de Git
+REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+node "$REPO_DIR/script/hookSync.js" post-checkout || true
+exit 0
